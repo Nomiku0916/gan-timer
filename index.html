@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111418">
+<title>GANタイマー — GAN 356 i Carry E Web Timer</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif; background: #111418; color: #e8eaed; }
+  main { max-width: 560px; margin: 0 auto; padding: 12px 14px 40px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  h1 { font-size: 19px; margin: 6px 0; }
+  h2 { font-size: 15px; margin: 18px 0 8px; color: #bdc1c6; }
+  button { background: #2a2f36; color: #e8eaed; border: 1px solid #3c434c; border-radius: 10px; padding: 9px 13px; font-size: 14px; cursor: pointer; }
+  button:active { background: #3a4149; }
+  button.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: 700; }
+  button.warn { border-color: #7a4a21; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #deviceInfo { font-size: 12px; color: #9aa0a6; word-break: break-all; }
+  #scramble { font-family: ui-monospace, Menlo, monospace; font-size: 19px; line-height: 1.5; background: #1b1f24; border: 1px solid #2e343c; border-radius: 12px; padding: 10px 12px; word-break: break-word; }
+  #status { margin-top: 8px; font-size: 14px; min-height: 20px; }
+  #status[data-kind="ready"] { color: #7ee787; font-weight: 700; }
+  #status[data-kind="run"] { color: #ffd500; font-weight: 700; }
+  #status[data-kind="done"] { color: #7ee787; font-weight: 700; }
+  #status[data-kind="warn"] { color: #ff8a80; }
+  #status[data-kind="wait"] { color: #9aa0a6; }
+  #timer { font-family: ui-monospace, Menlo, monospace; font-size: 64px; font-weight: 700; text-align: center; margin: 10px 0 2px; letter-spacing: 1px; }
+  #net { display: grid; grid-template-columns: repeat(4, 44px); gap: 3px; justify-content: center; margin: 8px auto; }
+  .net-face { display: grid; grid-template-columns: repeat(3, 13px); gap: 1.5px; }
+  .net-sq { width: 13px; height: 13px; border-radius: 2.5px; border: 1px solid rgba(0,0,0,.45); }
+  .net-gap { width: 44px; }
+  #splits { background: #1b1f24; border: 1px solid #2e343c; border-radius: 12px; padding: 6px 12px; }
+  .split-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #262c33; font-size: 14px; }
+  .split-row:last-child { border-bottom: none; }
+  .split-row b { font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+  #stats { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: #bdc1c6; background: #1b1f24; border: 1px solid #2e343c; border-radius: 12px; padding: 9px 12px; }
+  #stats b { color: #fff; font-family: ui-monospace, Menlo, monospace; }
+  .hist-item { background: #1b1f24; border: 1px solid #2e343c; border-radius: 12px; padding: 8px 12px; margin-bottom: 8px; }
+  .hist-main { display: flex; align-items: baseline; gap: 10px; }
+  .hist-main b { font-size: 20px; font-family: ui-monospace, Menlo, monospace; }
+  .hist-when { color: #9aa0a6; font-size: 12px; }
+  .hist-del { margin-left: auto; padding: 2px 9px; font-size: 12px; }
+  .hist-sub { font-size: 12.5px; color: #bdc1c6; margin-top: 2px; }
+  .hist-scr { font-size: 11.5px; color: #80868b; font-family: ui-monospace, Menlo, monospace; margin-top: 2px; word-break: break-word; }
+  #log { white-space: pre-wrap; font-size: 11.5px; color: #9aa0a6; background: #14171a; border-radius: 10px; padding: 8px 10px; min-height: 20px; }
+  details { background: #1b1f24; border: 1px solid #2e343c; border-radius: 12px; padding: 10px 12px; margin-top: 14px; }
+  details summary { cursor: pointer; font-size: 14px; }
+  details p, details li { font-size: 13px; line-height: 1.65; color: #c9cdd2; }
+  input[type="text"] { background: #111418; color: #fff; border: 1px solid #3c434c; border-radius: 8px; padding: 8px 10px; font-size: 14px; width: 210px; font-family: ui-monospace, Menlo, monospace; }
+  label.file-btn { background: #2a2f36; border: 1px solid #3c434c; border-radius: 10px; padding: 9px 13px; font-size: 14px; cursor: pointer; display: inline-block; }
+  #demoMoves { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+  .demo-move { font-family: ui-monospace, Menlo, monospace; font-size: 16px; padding: 10px 0; }
+  .small { font-size: 12px; color: #9aa0a6; line-height: 1.6; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>GANタイマー</h1>
+    <button id="connectBtn" class="primary">キューブに接続</button>
+  </header>
+  <div id="deviceInfo">未接続（GAN 356 i Carry E / Gen2プロトコル）</div>
+
+  <h2>スクランブル</h2>
+  <div id="scramble">—</div>
+  <div id="status"></div>
+  <div id="timer">0.000</div>
+  <div id="net"></div>
+
+  <div class="row">
+    <button id="newScrambleBtn">新しいスクランブル</button>
+    <button id="forceStartBtn">スクランブル未一致で開始</button>
+    <button id="discardBtn" class="warn">計測を破棄</button>
+  </div>
+
+  <h2>フェーズ別</h2>
+  <div id="splits"></div>
+  <p class="small">Cross / F2Lスロット（完了順）/ OLL / PLL / AUF。括弧内は手数。OLL・PLLのケース名判定は次版で対応予定のため、今版では代わりにケースのパターン（ollPattern / pllPattern）を記録しています。2Look判定は目安です。</p>
+
+  <h2>統計</h2>
+  <div id="stats"></div>
+  <p class="small">Ao5・Ao12は上下1つずつ、Ao50・Ao100は上下5つずつ除いた平均です。</p>
+
+  <h2>履歴</h2>
+  <div class="row" style="margin-bottom:10px">
+    <button id="exportBtn">バックアップをエクスポート (JSON)</button>
+    <label class="file-btn">インポート<input id="importFile" type="file" accept=".json,application/json" hidden></label>
+    <button id="clearBtn" class="warn">履歴を全削除</button>
+  </div>
+  <div id="history"></div>
+
+  <details>
+    <summary>設定（MACアドレス）</summary>
+    <p>GANキューブは暗号化にMACアドレスが必要です。通常は自動取得を試みますが、うまくいかない場合は下に手入力してください（CubeStationアプリのデバイス情報などで確認できます）。一度接続できると自動で保存されます。</p>
+    <div class="row">
+      <input type="text" id="mac" placeholder="AA:BB:CC:DD:EE:FF" autocomplete="off">
+      <label style="font-size:13px"><input type="checkbox" id="macFirst"> 保存したMACを優先する</label>
+    </div>
+    <p>自動取得を確実にしたい場合は、Chromeで <span style="font-family:ui-monospace">chrome://flags/#enable-experimental-web-platform-features</span> を Enabled にして再起動してください。</p>
+    <div class="row">
+      <button id="faceletsBtn">状態を再取得</button>
+      <button id="resetStateBtn" class="warn">キューブ内部状態をリセット</button>
+      <button id="demoBtn">デモモード</button>
+    </div>
+  </details>
+
+  <div id="demoPanel" style="display:none">
+    <h2>デモモード（キューブなしで動作確認）</h2>
+    <div id="demoMoves"></div>
+    <div class="row">
+      <button id="demoScrambleBtn">スクランブルを適用</button>
+      <button id="demoSolveBtn">逆手順で自動ソルブ</button>
+    </div>
+  </div>
+
+  <h2>ログ</h2>
+  <div id="log"></div>
+
+  <details>
+    <summary>使い方・注意</summary>
+    <ul>
+      <li>AndroidのChromeでこのページをHTTPS（またはlocalhost）で開いてください。Web Bluetoothはそれ以外では動きません。</li>
+      <li>CubeStationなど他のアプリと接続中だと見つかりません。他のアプリを切断してから接続してください。キューブが寝ているときは白い面を回すと起きます。</li>
+      <li>スクランブルは白が上・緑が手前の持ち方で回してください。スクランブルが一致すると「計測開始」待機になり、最初の一手でタイマーが始まり、完成で自動停止します。</li>
+      <li>記録はこのブラウザ内（localStorage）に保存されます。ときどきエクスポートでバックアップを取ってください。形式は以前の自作タイマーのバックアップと同じ形なので、そのまま読み込めます。</li>
+      <li>接続ライブラリ（gan-web-bluetooth）はCDNから読み込むため、接続操作には通信が必要です。</li>
+    </ul>
+  </details>
+</main>
+<script>
+/*
+ * cube-core.js — 3x3 cube engine + CFOP stage analysis (no dependencies)
+ *
+ * Facelet order is Kociemba notation: U(0-8) R(9-17) F(18-26) D(27-35) L(36-44) B(45-53).
+ * Faces are identified by center color in the cube's own frame, matching the
+ * GAN smart cube facelets: U = white, D = yellow, F = green, B = blue,
+ * R = red, L = orange. (The GAN 356 i Carry E has no gyroscope, so its
+ * reported state is in this body frame regardless of how the cube is held.)
+ *
+ * Works in the browser (window.CubeCore) and in Node (module.exports) so the
+ * exact same code that ships in the app is unit-tested.
+ */
+(function (global) {
+  'use strict';
+
+  var SOLVED = 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB';
+  var FACES = ['U', 'R', 'F', 'D', 'L', 'B'];
+
+  // ---- 3D sticker model -------------------------------------------------
+  // Each facelet slot has a fixed cubie position (x,y,z) and outward normal.
+  // x: +R/-L, y: +U/-D, z: +F/-B.
+  var FACE_DEFS = [
+    // face, normal, row positions (list of the varying coord values), col positions
+    // rows/cols follow the Kociemba layout of each face as seen from outside.
+    { face: 'U', normal: [0, 1, 0], fixed: ['y', 1], rowAxis: 'z', rows: [-1, 0, 1], colAxis: 'x', cols: [-1, 0, 1] },
+    { face: 'R', normal: [1, 0, 0], fixed: ['x', 1], rowAxis: 'y', rows: [1, 0, -1], colAxis: 'z', cols: [1, 0, -1] },
+    { face: 'F', normal: [0, 0, 1], fixed: ['z', 1], rowAxis: 'y', rows: [1, 0, -1], colAxis: 'x', cols: [-1, 0, 1] },
+    { face: 'D', normal: [0, -1, 0], fixed: ['y', -1], rowAxis: 'z', rows: [1, 0, -1], colAxis: 'x', cols: [-1, 0, 1] },
+    { face: 'L', normal: [-1, 0, 0], fixed: ['x', -1], rowAxis: 'y', rows: [1, 0, -1], colAxis: 'z', cols: [-1, 0, 1] },
+    { face: 'B', normal: [0, 0, -1], fixed: ['z', -1], rowAxis: 'y', rows: [1, 0, -1], colAxis: 'x', cols: [1, 0, -1] }
+  ];
+  var AXIS_INDEX = { x: 0, y: 1, z: 2 };
+
+  var SLOTS = []; // index -> {pos:[x,y,z], normal:[x,y,z]}
+  FACE_DEFS.forEach(function (def) {
+    def.rows.forEach(function (rv) {
+      def.cols.forEach(function (cv) {
+        var pos = [0, 0, 0];
+        pos[AXIS_INDEX[def.fixed[0]]] = def.fixed[1];
+        pos[AXIS_INDEX[def.rowAxis]] = rv;
+        pos[AXIS_INDEX[def.colAxis]] = cv;
+        SLOTS.push({ pos: pos, normal: def.normal.slice() });
+      });
+    });
+  });
+
+  function slotKey(pos, normal) {
+    return pos.join(',') + '|' + normal.join(',');
+  }
+  var SLOT_INDEX = {};
+  SLOTS.forEach(function (s, i) { SLOT_INDEX[slotKey(s.pos, s.normal)] = i; });
+
+  function faceOfNormal(n) {
+    if (n[1] === 1) return 'U';
+    if (n[1] === -1) return 'D';
+    if (n[0] === 1) return 'R';
+    if (n[0] === -1) return 'L';
+    if (n[2] === 1) return 'F';
+    return 'B';
+  }
+  var FACE_NORMAL = { U: [0, 1, 0], D: [0, -1, 0], R: [1, 0, 0], L: [-1, 0, 0], F: [0, 0, 1], B: [0, 0, -1] };
+
+  // Rotate vector v by -90 degrees (clockwise seen from the tip of `axis`)
+  // around the given unit axis, using integer arithmetic (Rodrigues, cos=0, sin=-1):
+  // v' = -(axis x v) + axis * (axis . v)
+  function rotCW(v, axis) {
+    var cross = [
+      axis[1] * v[2] - axis[2] * v[1],
+      axis[2] * v[0] - axis[0] * v[2],
+      axis[0] * v[1] - axis[1] * v[0]
+    ];
+    var dot = axis[0] * v[0] + axis[1] * v[1] + axis[2] * v[2];
+    return [
+      -cross[0] + axis[0] * dot,
+      -cross[1] + axis[1] * dot,
+      -cross[2] + axis[2] * dot
+    ];
+  }
+
+  // PERM[face][oldIndex] = newIndex for one clockwise quarter turn.
+  var PERM = {};
+  FACES.forEach(function (face) {
+    var axis = FACE_NORMAL[face];
+    var perm = new Array(54);
+    for (var i = 0; i < 54; i++) {
+      var s = SLOTS[i];
+      var inLayer = (s.pos[0] * axis[0] + s.pos[1] * axis[1] + s.pos[2] * axis[2]) === 1;
+      if (!inLayer) { perm[i] = i; continue; }
+      var newPos = rotCW(s.pos, axis);
+      var newNormal = rotCW(s.normal, axis);
+      perm[i] = SLOT_INDEX[slotKey(newPos, newNormal)];
+    }
+    PERM[face] = perm;
+  });
+
+  function solvedState() { return SOLVED.split(''); }
+
+  // state: array of 54 chars. move: {face, turns} turns = quarter turns CW (1,2,3)
+  function applyQuarterTurns(state, face, turns) {
+    var perm = PERM[face];
+    var src = state;
+    var out = state;
+    for (var k = 0; k < turns; k++) {
+      out = new Array(54);
+      for (var i = 0; i < 54; i++) out[perm[i]] = src[i];
+      src = out;
+    }
+    return out;
+  }
+
+  // Parse one token like "R", "R'", "R2", "U2'" -> {face, turnsCW}
+  function parseToken(tok) {
+    var m = /^([URFDLB])(2'?|'|2)?$/.exec(tok);
+    if (!m) return null;
+    var suffix = m[2] || '';
+    var turns = suffix === '' ? 1 : suffix.indexOf('2') === 0 ? 2 : 3;
+    return { face: m[1], turns: turns };
+  }
+
+  function parseSequence(str) {
+    if (!str) return [];
+    return str.trim().split(/\s+/).filter(Boolean).map(function (tok) {
+      var p = parseToken(tok);
+      if (!p) throw new Error('Unsupported move token: ' + tok);
+      return p;
+    });
+  }
+
+  function tokenString(face, turnsCW) {
+    if (turnsCW === 1) return face;
+    if (turnsCW === 2) return face + '2';
+    return face + "'";
+  }
+
+  // Expand parsed moves into quarter-turn strings: R2 -> ["R","R"], R' -> ["R'"]
+  function expandQuarters(parsed) {
+    var out = [];
+    parsed.forEach(function (p) {
+      if (p.turns === 2) { out.push(p.face, p.face); }
+      else out.push(tokenString(p.face, p.turns));
+    });
+    return out;
+  }
+
+  function applySequence(state, str) {
+    var st = state;
+    parseSequence(str).forEach(function (p) { st = applyQuarterTurns(st, p.face, p.turns); });
+    return st;
+  }
+
+  function invertSequence(str) {
+    var parsed = parseSequence(str);
+    var inv = [];
+    for (var i = parsed.length - 1; i >= 0; i--) {
+      inv.push(tokenString(parsed[i].face, (4 - parsed[i].turns) % 4));
+    }
+    return inv.join(' ');
+  }
+
+  function stateToString(state) { return state.join(''); }
+
+  // ---- Scramble generator (simple, training use) -------------------------
+  var AXIS_OF = { U: 'y', D: 'y', R: 'x', L: 'x', F: 'z', B: 'z' };
+  function generateScramble(length, rng) {
+    length = length || 21;
+    rng = rng || Math.random;
+    var moves = [];
+    var prev = null, prevPrev = null;
+    while (moves.length < length) {
+      var face = FACES[Math.floor(rng() * 6)];
+      if (face === prev) continue;
+      if (prev && prevPrev && AXIS_OF[face] === AXIS_OF[prev] && AXIS_OF[prev] === AXIS_OF[prevPrev]) continue;
+      var suffix = ['', "'", '2'][Math.floor(rng() * 3)];
+      moves.push(face + suffix);
+      prevPrev = prev; prev = face;
+    }
+    return moves.join(' ');
+  }
+
+  // ---- CFOP stage conditions (facelets array/string) ----------------------
+  function F(f, i) { return f[i]; }
+  function isCross(f) {
+    return F(f, 1) === 'U' && F(f, 46) === 'B' &&
+           F(f, 3) === 'U' && F(f, 37) === 'L' &&
+           F(f, 5) === 'U' && F(f, 10) === 'R' &&
+           F(f, 7) === 'U' && F(f, 19) === 'F';
+  }
+  // F2L pairs in slot order FR, FL, BL, BR (body frame: white corners + middle edges)
+  var PAIR_CHECKS = [
+    function (f) { return F(f, 8) === 'U' && F(f, 9) === 'R' && F(f, 20) === 'F' && F(f, 23) === 'F' && F(f, 12) === 'R'; },
+    function (f) { return F(f, 6) === 'U' && F(f, 18) === 'F' && F(f, 38) === 'L' && F(f, 21) === 'F' && F(f, 41) === 'L'; },
+    function (f) { return F(f, 0) === 'U' && F(f, 36) === 'L' && F(f, 47) === 'B' && F(f, 50) === 'B' && F(f, 39) === 'L'; },
+    function (f) { return F(f, 2) === 'U' && F(f, 45) === 'B' && F(f, 11) === 'R' && F(f, 48) === 'B' && F(f, 14) === 'R'; }
+  ];
+  function pairCount(f) {
+    var n = 0;
+    PAIR_CHECKS.forEach(function (c) { if (c(f)) n++; });
+    return n;
+  }
+  function pairFlags(f) { return PAIR_CHECKS.map(function (c) { return c(f); }); }
+  function isEoll(f) {
+    return F(f, 28) === 'D' && F(f, 30) === 'D' && F(f, 32) === 'D' && F(f, 34) === 'D';
+  }
+  function isOll(f) {
+    for (var i = 27; i <= 35; i++) if (F(f, i) !== 'D') return false;
+    return true;
+  }
+  function isSolved(f) { return stateToString(f) === SOLVED; }
+  function isPllUpToAuf(f) {
+    var st = typeof f === 'string' ? f.split('') : f.slice();
+    for (var k = 0; k < 4; k++) {
+      if (stateToString(st) === SOLVED) return true;
+      st = applyQuarterTurns(st, 'D', 1);
+    }
+    return false;
+  }
+
+  // Last-layer fingerprint: D face (9) + D-layer side stickers (12), normalized
+  // over the 4 AUF rotations so the same case always yields the same string.
+  var LL_INDICES = [27, 28, 29, 30, 31, 32, 33, 34, 35, 15, 16, 17, 24, 25, 26, 42, 43, 44, 51, 52, 53];
+  function llPattern(f) {
+    var st = typeof f === 'string' ? f.split('') : f.slice();
+    var best = null;
+    for (var k = 0; k < 4; k++) {
+      var s = LL_INDICES.map(function (i) { return st[i]; }).join('');
+      if (best === null || s < best) best = s;
+      st = applyQuarterTurns(st, 'D', 1);
+    }
+    return best;
+  }
+
+  // ---- Stage tracker -------------------------------------------------------
+  // Feed the tracker the cube state after every quarter turn, with the elapsed
+  // time (seconds, first move = 0) and the number of moves so far.
+  //
+  // Model: stage conditions are cumulative (C0 = cross, C1..C4 = cross plus
+  // at least k F2L pairs, C5 = + OLL, C6 = + PLL up to AUF, C7 = solved).
+  // Each stage is recorded at its FIRST completion. This is the live-timer
+  // model (same as CubeStation): algorithms for later stages temporarily
+  // disturb earlier layers mid-execution, so once a stage has been reached
+  // its split must not be revised by that flicker.
+  var STAGE_COUNT = 8; // 0 cross, 1-4 f2l slots, 5 oll, 6 pll, 7 solved
+  function StageTracker() {
+    this.cand = new Array(STAGE_COUNT).fill(null);
+    this.eoll = null;          // {t, moves, atStart}
+    this.ollPattern = null;
+    this.pllPattern = null;
+  }
+  StageTracker.prototype.update = function (f, t, moveCount) {
+    var pairs = pairCount(f);
+    var cond = [
+      isCross(f),
+      pairs >= 1, pairs >= 2, pairs >= 3, pairs >= 4,
+      isOll(f),
+      isPllUpToAuf(f),
+      isSolved(f)
+    ];
+    var cum = true;
+    var C = cond.map(function (c) { cum = cum && c; return cum; });
+
+    for (var s = 0; s < STAGE_COUNT; s++) {
+      if (C[s] && !this.cand[s]) {
+        this.cand[s] = { t: t, moves: moveCount };
+        if (s === 4) this.ollPattern = llPattern(f);
+        if (s === 5) this.pllPattern = llPattern(f);
+      }
+    }
+    // EOLL sub-stage: first time edges are oriented after F2L completion and
+    // before OLL completion. atStart = edges were already oriented at the
+    // moment F2L completed.
+    if (this.cand[4] && !this.cand[5] && !this.eoll && isEoll(f)) {
+      var atStart = this.cand[4].t === t && this.cand[4].moves === moveCount;
+      this.eoll = { t: t, moves: moveCount, atStart: atStart };
+    }
+  };
+  StageTracker.prototype.isSolved = function () { return !!this.cand[7]; };
+  // Final stage end records: {cross, f2l[4], oll, pll, solved, eoll}.
+  StageTracker.prototype.stageEnds = function () {
+    return {
+      cross: this.cand[0],
+      f2l: [this.cand[1], this.cand[2], this.cand[3], this.cand[4]],
+      oll: this.cand[5],
+      pll: this.cand[6],
+      solved: this.cand[7],
+      eoll: this.eoll
+    };
+  };
+
+  function r2(x) { return Math.round(x * 100) / 100; }
+  function tps(moves, dur) { return dur > 0 ? r2(moves / dur) : 0; }
+
+  // Build a solve record in the same shape as the user's existing timer
+  // backup format. Returns null when the solve did not reach solved state.
+  StageTracker.prototype.toRecord = function (meta) {
+    var ends = this.stageEnds();
+    if (!ends.solved) return null;
+    var crossEnd = ends.cross || { t: 0, moves: 0 };
+    var f2lEnds = ends.f2l.map(function (x) { return x || crossEnd; });
+    var f2lEnd = f2lEnds[3];
+    var ollEnd = ends.oll || f2lEnd;
+    var pllEnd = ends.pll || ollEnd;
+    var solvedEnd = ends.solved;
+    var eollEnd = ends.eoll;
+
+    var crossDur = crossEnd.t, crossMoves = crossEnd.moves;
+    var f2lDur = [], f2lMoves = [], f2lTps = [];
+    var prevT = crossEnd.t, prevM = crossEnd.moves;
+    f2lEnds.forEach(function (e) {
+      var d = e.t - prevT, m = e.moves - prevM;
+      f2lDur.push(r2(d)); f2lMoves.push(m); f2lTps.push(tps(m, d));
+      prevT = e.t; prevM = e.moves;
+    });
+    var f2lTotal = f2lEnd.t - crossEnd.t, f2lTotalMoves = f2lEnd.moves - crossEnd.moves;
+    var ollDur = ollEnd.t - f2lEnd.t, ollMoves = ollEnd.moves - f2lEnd.moves;
+    // 2-look heuristic: edges were oriented mid-stage (not already oriented
+    // when F2L finished) and at least 3 quarter turns before OLL completed,
+    // i.e. a separate corner-orientation step followed the edge step.
+    var is2Look = !!(eollEnd && !eollEnd.atStart && (ollEnd.moves - eollEnd.moves) >= 3);
+    var eollDur, eollMoves, collDur, collMoves;
+    if (is2Look) {
+      eollDur = eollEnd.t - f2lEnd.t; eollMoves = eollEnd.moves - f2lEnd.moves;
+      collDur = ollEnd.t - eollEnd.t; collMoves = ollEnd.moves - eollEnd.moves;
+    } else {
+      eollDur = ollDur; eollMoves = ollMoves; collDur = 0; collMoves = 0;
+    }
+    var pllDur = pllEnd.t - ollEnd.t, pllMoves = pllEnd.moves - ollEnd.moves;
+    var aufDur = solvedEnd.t - pllEnd.t, aufMoves = solvedEnd.moves - pllEnd.moves;
+    var totalMoves = solvedEnd.moves;
+
+    var cfop = {
+      cross: r2(crossDur), crossMoves: crossMoves, crossTps: tps(crossMoves, crossDur), crossFace: 'U',
+      f2l: f2lDur, f2lMoves: f2lMoves, f2lTps: f2lTps,
+      f2lTotal: r2(f2lTotal), f2lTotalMoves: f2lTotalMoves, f2lTotalTps: tps(f2lTotalMoves, f2lTotal),
+      eoll: r2(eollDur), eollMoves: eollMoves, eollTps: tps(eollMoves, eollDur),
+      coll: r2(collDur), collMoves: collMoves, collTps: tps(collMoves, collDur), collName: null,
+      is2LookOll: is2Look,
+      oll: r2(ollDur), ollMoves: ollMoves, ollTps: tps(ollMoves, ollDur), ollName: null,
+      ollSkip: ollEnd.t === f2lEnd.t && ollEnd.moves === f2lEnd.moves,
+      pll: r2(pllDur), pllMoves: pllMoves, pllTps: tps(pllMoves, pllDur), pllName: null,
+      pllSkip: pllEnd.t === ollEnd.t && pllEnd.moves === ollEnd.moves,
+      auf: r2(aufDur), aufMoves: aufMoves, aufTps: tps(aufMoves, aufDur),
+      totalMoves: totalMoves, totalTps: tps(totalMoves, solvedEnd.t),
+      ollPattern: this.ollPattern, pllPattern: this.pllPattern
+    };
+    return {
+      id: meta.id, date: meta.date, time: r2(solvedEnd.t),
+      scramble: meta.scramble, moves: meta.moves, timeline: meta.timeline,
+      cfop: cfop
+    };
+  };
+
+  // Replay a whole solve: initialFacelets (string) + moves [{move, t}] where
+  // move is a quarter-turn string ("R" or "R'") and t is elapsed seconds.
+  function analyzeSolve(initialFacelets, moves) {
+    var state = initialFacelets.split('');
+    var tracker = new StageTracker();
+    moves.forEach(function (m, i) {
+      var p = parseToken(m.move);
+      if (!p) return;
+      state = applyQuarterTurns(state, p.face, p.turns);
+      tracker.update(state, m.t, i + 1);
+    });
+    return tracker;
+  }
+
+  var api = {
+    SOLVED: SOLVED, FACES: FACES,
+    solvedState: solvedState, applyQuarterTurns: applyQuarterTurns,
+    parseToken: parseToken, parseSequence: parseSequence, expandQuarters: expandQuarters,
+    applySequence: applySequence, invertSequence: invertSequence, stateToString: stateToString,
+    generateScramble: generateScramble,
+    isCross: isCross, pairCount: pairCount, pairFlags: pairFlags,
+    isEoll: isEoll, isOll: isOll, isSolved: isSolved, isPllUpToAuf: isPllUpToAuf,
+    llPattern: llPattern, StageTracker: StageTracker, analyzeSolve: analyzeSolve
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  global.CubeCore = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+'use strict';
+/* GAN 356 i Carry E Web Timer — app logic (browser). CubeCore is inlined above. */
+const C = window.CubeCore;
+const $ = (id) => document.getElementById(id);
+
+const LS_SOLVES = 'ganTimer.v1.solves';
+const LS_MAC = 'ganTimer.v1.mac';
+const LS_MACFIRST = 'ganTimer.v1.macFirst';
+const GAN_LIB_URL = 'https://esm.sh/gan-web-bluetooth@3.0.2?bundle';
+
+// ---------- persistent state ----------
+let solves = [];
+try { solves = JSON.parse(localStorage.getItem(LS_SOLVES) || '[]'); if (!Array.isArray(solves)) solves = []; } catch (e) { solves = []; }
+function saveSolves() { try { localStorage.setItem(LS_SOLVES, JSON.stringify(solves)); } catch (e) { log('履歴の保存に失敗しました（容量不足の可能性）'); } }
+
+// ---------- runtime state ----------
+let conn = null;            // GAN connection
+let ganLib = null;          // loaded library module
+let demoMode = false;
+let cubeState = C.solvedState();
+let synced = false;
+let mode = 'idle';          // idle | scrambling | armed | solving | done
+let currentScramble = '';
+let targetState = null;     // array, state after applying scramble to solved
+let armedKind = null;       // 'matched' | 'manual'
+let solveCtx = null;        // {initial, moves:[{move,t,localTimestamp,cubeTimestamp}], tracker, resynced}
+let firstLocal = null;
+let rafId = null;
+let wakeLock = null;
+
+const FACE_COLORS = { U: '#f2f2f2', D: '#ffd500', F: '#009b48', B: '#0051ba', R: '#b71234', L: '#ff5800' };
+
+// ---------- helpers ----------
+function fmtTimer(sec) {
+  if (sec == null || isNaN(sec)) return '0.000';
+  const m = Math.floor(sec / 60), s = sec - m * 60;
+  const ss = m > 0 ? String(Math.floor(s)).padStart(2, '0') : String(Math.floor(s));
+  return (m > 0 ? m + ':' : '') + ss + '.' + String(Math.floor((s % 1) * 1000)).padStart(3, '0');
+}
+function fmt2(sec) { return sec == null ? '-' : (Math.round(sec * 100) / 100).toFixed(2); }
+function log(msg) {
+  const el = $('log');
+  const time = new Date().toLocaleTimeString('ja-JP', { hour12: false });
+  el.textContent = `[${time}] ${msg}\n` + el.textContent.split('\n').slice(0, 4).join('\n');
+}
+function setStatus(text, kind) {
+  const el = $('status');
+  el.textContent = text;
+  el.dataset.kind = kind || '';
+}
+function stateStr() { return C.stateToString(cubeState); }
+
+// ---------- cube net rendering ----------
+function renderNet() {
+  const order = [null, 'U', null, null, 'L', 'F', 'R', 'B', null, 'D', null, null];
+  const faceStart = { U: 0, R: 9, F: 18, D: 27, L: 36, B: 45 };
+  const net = $('net');
+  net.innerHTML = '';
+  order.forEach((face) => {
+    const cell = document.createElement('div');
+    if (!face) { cell.className = 'net-gap'; net.appendChild(cell); return; }
+    cell.className = 'net-face';
+    const start = faceStart[face];
+    for (let i = 0; i < 9; i++) {
+      const sq = document.createElement('div');
+      sq.className = 'net-sq';
+      sq.style.background = FACE_COLORS[cubeState[start + i]];
+      cell.appendChild(sq);
+    }
+    net.appendChild(cell);
+  });
+}
+
+// ---------- scramble flow ----------
+function newScramble() {
+  currentScramble = C.generateScramble(21);
+  targetState = C.applySequence(C.solvedState(), currentScramble);
+  $('scramble').textContent = currentScramble;
+  solveCtx = null; firstLocal = null;
+  stopTimerDisplay(); $('timer').textContent = '0.000';
+  renderSplits(null);
+  if (stateStr() === C.stateToString(targetState)) {
+    armSolve('matched');
+  } else {
+    mode = 'scrambling';
+    setStatus('スクランブルしてください（白が上・緑が手前）', 'wait');
+  }
+  renderNet();
+}
+function armSolve(kind) {
+  mode = 'armed'; armedKind = kind;
+  if (kind === 'matched') setStatus('スクランブル完了！ 最初の一手で計測開始', 'ready');
+  else setStatus('手動スタート待機中：最初の一手で計測開始', 'ready');
+  if (navigator.vibrate) navigator.vibrate(40);
+}
+function checkScrambleMatch() {
+  if (mode === 'scrambling' && targetState && stateStr() === C.stateToString(targetState)) armSolve('matched');
+}
+
+// ---------- solving ----------
+function startSolve(initialStateStr) {
+  mode = 'solving';
+  solveCtx = { initial: initialStateStr, moves: [], tracker: new C.StageTracker(), resynced: false, scrambleMatched: armedKind === 'matched' };
+  firstLocal = null;
+  setStatus('計測中…', 'run');
+  requestWakeLock();
+}
+function recordMove(moveStr, cubeTimestamp, localTimestamp) {
+  if (!solveCtx) return;
+  if (firstLocal === null) {
+    firstLocal = localTimestamp;
+    startTimerDisplay();
+  }
+  const t = (localTimestamp - firstLocal) / 1000;
+  solveCtx.moves.push({ move: moveStr, t: t, localTimestamp: localTimestamp, cubeTimestamp: cubeTimestamp });
+  solveCtx.tracker.update(cubeState, t, solveCtx.moves.length);
+  renderSplitsLive();
+  if (solveCtx.tracker.isSolved()) finishSolve();
+}
+function onMove(moveStr, cubeTimestamp, localTimestamp) {
+  moveStr = (moveStr || '').trim();
+  const p = C.parseToken(moveStr);
+  if (!p) return;
+  const prevStr = stateStr();
+  cubeState = C.applyQuarterTurns(cubeState, p.face, p.turns);
+  renderNet();
+  if (mode === 'scrambling') { checkScrambleMatch(); return; }
+  if (mode === 'armed') { startSolve(prevStr); recordMove(moveStr, cubeTimestamp, localTimestamp); return; }
+  if (mode === 'solving') { recordMove(moveStr, cubeTimestamp, localTimestamp); return; }
+  // idle / done: free turning, nothing recorded
+}
+function onFacelets(facelets) {
+  if (!facelets || facelets.length !== 54) return;
+  const before = stateStr();
+  if (facelets === before) { synced = true; return; }
+  cubeState = facelets.split('');
+  synced = true;
+  renderNet();
+  if (mode === 'solving' && solveCtx) {
+    // BLE move loss etc.: trust the cube's reported state and continue.
+    solveCtx.resynced = true;
+    const t = firstLocal === null ? 0 : (performance.now() - firstLocal) / 1000;
+    solveCtx.tracker.update(cubeState, t, solveCtx.moves.length);
+    log('キューブの状態と再同期しました');
+    renderSplitsLive();
+    if (solveCtx.tracker.isSolved()) finishSolve();
+  } else if (mode === 'scrambling') {
+    checkScrambleMatch();
+  }
+}
+
+function buildRecord(useFit) {
+  const meta = {
+    id: Date.now(),
+    date: new Date().toISOString(),
+    scramble: currentScramble,
+    moves: solveCtx.moves.map((m) => m.move),
+    timeline: null
+  };
+  let tracker = solveCtx.tracker;
+  let timeline = solveCtx.moves.map((m) => ({ move: m.move, time: Math.round(m.t * 1000) / 1000 }));
+  if (useFit && ganLib && solveCtx.moves.length >= 2 && solveCtx.moves.every((m) => typeof m.cubeTimestamp === 'number')) {
+    try {
+      const ganMoves = solveCtx.moves.map((m) => ({
+        face: 'URFDLB'.indexOf(m.move[0]),
+        direction: m.move.indexOf("'") >= 0 ? 1 : 0,
+        move: m.move,
+        localTimestamp: m.localTimestamp,
+        cubeTimestamp: m.cubeTimestamp
+      }));
+      const fitted = ganLib.cubeTimestampLinearFit(ganMoves);
+      const replayMoves = fitted.map((m) => ({ move: m.move, t: (m.cubeTimestamp || 0) / 1000 }));
+      const replayTracker = C.analyzeSolve(solveCtx.initial, replayMoves);
+      if (replayTracker.isSolved()) {
+        tracker = replayTracker;
+        timeline = replayMoves.map((m) => ({ move: m.move, time: Math.round(m.t * 1000) / 1000 }));
+      }
+    } catch (e) { /* fall back to live tracker */ }
+  }
+  meta.timeline = timeline;
+  const rec = tracker.toRecord(meta);
+  if (rec) {
+    rec.scrambleMatched = solveCtx.scrambleMatched;
+    rec.source = demoMode ? 'demo' : 'gan';
+    if (solveCtx.resynced) rec.resynced = true;
+  }
+  return rec;
+}
+
+function finishSolve() {
+  stopTimerDisplay();
+  releaseWakeLock();
+  const rec = buildRecord(!solveCtx.resynced);
+  if (!rec) { mode = 'done'; setStatus('記録に失敗しました（未完成のソルブ）', 'warn'); return; }
+  solves.push(rec);
+  saveSolves();
+  renderStats(); renderHistory();
+  log(`ソルブ記録: ${rec.time}秒 / ${rec.cfop.totalMoves}手 / ${rec.cfop.totalTps} TPS`);
+  if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+  newScramble(); // prepares the next scramble and resets timer/splits...
+  $('timer').textContent = fmtTimer(rec.time); // ...then show the finished result again
+  renderSplits(rec);
+  setStatus(`完了！ ${fmtTimer(rec.time)} — 次のスクランブルです`, 'done');
+}
+
+function discardSolve() {
+  if (mode === 'solving' || mode === 'armed') {
+    stopTimerDisplay(); releaseWakeLock();
+    solveCtx = null; firstLocal = null;
+    $('timer').textContent = '0.000';
+    renderSplits(null);
+    mode = 'idle';
+    setStatus('破棄しました。新しいスクランブルをどうぞ', '');
+    newScramble();
+  }
+}
+
+// ---------- timer display ----------
+function startTimerDisplay() {
+  stopTimerDisplay();
+  const tick = () => {
+    if (firstLocal !== null && mode === 'solving') {
+      $('timer').textContent = fmtTimer((performance.now() - firstLocal) / 1000);
+    }
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+function stopTimerDisplay() { if (rafId) cancelAnimationFrame(rafId); rafId = null; }
+async function requestWakeLock() { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* ignore */ } }
+function releaseWakeLock() { try { if (wakeLock) wakeLock.release(); } catch (e) { /* ignore */ } wakeLock = null; }
+
+// ---------- splits rendering ----------
+function splitRows(cfop) {
+  if (!cfop) return [['Cross', '-'], ['F2L 1', '-'], ['F2L 2', '-'], ['F2L 3', '-'], ['F2L 4', '-'], ['OLL', '-'], ['PLL', '-'], ['AUF', '-']];
+  const rows = [
+    ['Cross', fmt2(cfop.cross) + ` (${cfop.crossMoves})`],
+    ['F2L 1', fmt2(cfop.f2l[0]) + ` (${cfop.f2lMoves[0]})`],
+    ['F2L 2', fmt2(cfop.f2l[1]) + ` (${cfop.f2lMoves[1]})`],
+    ['F2L 3', fmt2(cfop.f2l[2]) + ` (${cfop.f2lMoves[2]})`],
+    ['F2L 4', fmt2(cfop.f2l[3]) + ` (${cfop.f2lMoves[3]})`],
+    ['F2L合計', fmt2(cfop.f2lTotal) + ` (${cfop.f2lTotalMoves})`]
+  ];
+  if (cfop.ollSkip) rows.push(['OLL', 'SKIP']);
+  else if (cfop.is2LookOll) rows.push(['OLL (2Look)', fmt2(cfop.oll) + ` E:${fmt2(cfop.eoll)} + C:${fmt2(cfop.coll)}`]);
+  else rows.push(['OLL', fmt2(cfop.oll) + ` (${cfop.ollMoves})`]);
+  rows.push([cfop.pllSkip ? 'PLL' : 'PLL', cfop.pllSkip ? 'SKIP' : fmt2(cfop.pll) + ` (${cfop.pllMoves})`]);
+  rows.push(['AUF', fmt2(cfop.auf) + ` (${cfop.aufMoves})`]);
+  return rows;
+}
+function renderSplits(rec) {
+  const rows = splitRows(rec ? rec.cfop : null);
+  $('splits').innerHTML = rows.map(([k, v]) => `<div class="split-row"><span>${k}</span><b>${v}</b></div>`).join('');
+}
+function renderSplitsLive() {
+  if (!solveCtx) return;
+  const ends = solveCtx.tracker.stageEnds();
+  const dur = (end, prev) => (end ? (end.t - (prev ? prev.t : 0)) : null);
+  const fake = {
+    cross: ends.cross ? ends.cross.t : null, crossMoves: ends.cross ? ends.cross.moves : 0,
+    f2l: [0, 1, 2, 3].map((i) => {
+      const prev = i === 0 ? ends.cross : ends.f2l[i - 1];
+      return ends.f2l[i] && prev ? ends.f2l[i].t - prev.t : (ends.f2l[i] ? ends.f2l[i].t : null);
+    }),
+    f2lMoves: [0, 1, 2, 3].map((i) => {
+      const prev = i === 0 ? ends.cross : ends.f2l[i - 1];
+      return ends.f2l[i] ? ends.f2l[i].moves - (prev ? prev.moves : 0) : 0;
+    }),
+    f2lTotal: ends.f2l[3] && ends.cross ? ends.f2l[3].t - ends.cross.t : null,
+    f2lTotalMoves: ends.f2l[3] && ends.cross ? ends.f2l[3].moves - ends.cross.moves : 0,
+    oll: ends.oll && ends.f2l[3] ? ends.oll.t - ends.f2l[3].t : null,
+    ollMoves: ends.oll && ends.f2l[3] ? ends.oll.moves - ends.f2l[3].moves : 0,
+    ollSkip: !!(ends.oll && ends.f2l[3] && ends.oll.moves === ends.f2l[3].moves),
+    is2LookOll: false, eoll: 0, coll: 0,
+    pll: ends.pll && ends.oll ? ends.pll.t - ends.oll.t : null,
+    pllMoves: ends.pll && ends.oll ? ends.pll.moves - ends.oll.moves : 0,
+    pllSkip: !!(ends.pll && ends.oll && ends.pll.moves === ends.oll.moves),
+    auf: null, aufMoves: 0
+  };
+  void dur;
+  renderSplits({ cfop: fake });
+}
+
+// ---------- stats & history ----------
+function ao(times, n) {
+  if (times.length < n) return null;
+  const slice = times.slice(-n).slice();
+  slice.sort((a, b) => a - b);
+  const trim = n >= 50 ? 5 : 1;
+  const core = slice.slice(trim, n - trim);
+  if (!core.length) return null;
+  return core.reduce((a, b) => a + b, 0) / core.length;
+}
+function renderStats() {
+  const times = solves.map((s) => s.time).filter((t) => typeof t === 'number');
+  const best = times.length ? Math.min.apply(null, times) : null;
+  $('stats').innerHTML =
+    `<span>記録 <b>${times.length}</b></span>` +
+    `<span>Best <b>${best == null ? '-' : fmt2(best)}</b></span>` +
+    `<span>Ao5 <b>${fmt2(ao(times, 5))}</b></span>` +
+    `<span>Ao12 <b>${fmt2(ao(times, 12))}</b></span>` +
+    `<span>Ao50 <b>${fmt2(ao(times, 50))}</b></span>` +
+    `<span>Ao100 <b>${fmt2(ao(times, 100))}</b></span>`;
+}
+function cfopSummary(c) {
+  if (!c) return '';
+  const oll = c.ollSkip ? 'SKIP' : fmt2(c.oll) + (c.is2LookOll ? '(2Look)' : '');
+  const pll = c.pllSkip ? 'SKIP' : fmt2(c.pll);
+  return `C ${fmt2(c.cross)} / F ${fmt2(c.f2lTotal)} / O ${oll} / P ${pll} / AUF ${fmt2(c.auf)} · ${c.totalMoves}手 ${fmt2(c.totalTps)}TPS`;
+}
+function renderHistory() {
+  const list = $('history');
+  list.innerHTML = '';
+  solves.slice().reverse().slice(0, 100).forEach((rec) => {
+    const item = document.createElement('div');
+    item.className = 'hist-item';
+    const d = new Date(rec.date);
+    const when = isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    item.innerHTML =
+      `<div class="hist-main"><b>${fmt2(rec.time)}</b><span class="hist-when">${when}</span>` +
+      `<button class="hist-del" title="削除">✕</button></div>` +
+      `<div class="hist-sub">${cfopSummary(rec.cfop)}</div>` +
+      `<div class="hist-scr">${rec.scramble || ''}</div>`;
+    item.querySelector('.hist-del').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      solves = solves.filter((s) => s.id !== rec.id);
+      saveSolves(); renderStats(); renderHistory();
+    });
+    list.appendChild(item);
+  });
+}
+
+// ---------- export / import ----------
+function exportJson() {
+  const blob = new Blob([JSON.stringify(solves)], { type: 'application/json' });
+  const a = document.createElement('a');
+  const now = new Date();
+  const name = `gan-timer-backup-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.json`;
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  log(`エクスポートしました（${solves.length}件）`);
+}
+function importJson(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data)) throw new Error('配列ではありません');
+      const ids = new Set(solves.map((s) => s.id));
+      let added = 0;
+      data.forEach((rec) => {
+        if (rec && typeof rec.time === 'number' && !ids.has(rec.id)) { solves.push(rec); added++; }
+      });
+      solves.sort((a, b) => (new Date(a.date || 0) - new Date(b.date || 0)) || ((a.id || 0) - (b.id || 0)));
+      saveSolves(); renderStats(); renderHistory();
+      log(`インポート: ${added}件を追加しました`);
+    } catch (e) { log('インポートに失敗しました: ' + e.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ---------- GAN connection ----------
+async function loadGanLib() {
+  if (ganLib) return ganLib;
+  ganLib = await import(GAN_LIB_URL);
+  return ganLib;
+}
+function saveMac(mac) {
+  try { localStorage.setItem(LS_MAC, mac || ''); } catch (e) { /* ignore */ }
+}
+async function macProvider(device, isFallbackCall) {
+  const saved = ($('mac').value || '').trim();
+  const macFirst = $('macFirst').checked;
+  if (!isFallbackCall) {
+    if (macFirst && saved) return saved;
+    return null; // let the library try automatic retrieval via advertisements
+  }
+  if (saved) return saved;
+  const entered = window.prompt('キューブのMACアドレスを入力してください（例: AA:BB:CC:DD:EE:FF）\nCubeStationアプリのデバイス情報などで確認できます。', '');
+  if (entered && entered.trim()) {
+    $('mac').value = entered.trim();
+    saveMac(entered.trim());
+    return entered.trim();
+  }
+  return null;
+}
+async function connectCube() {
+  if (conn) {
+    try { await conn.disconnect(); } catch (e) { /* ignore */ }
+    conn = null;
+    $('connectBtn').textContent = 'キューブに接続';
+    $('deviceInfo').textContent = '未接続';
+    setStatus('切断しました', '');
+    return;
+  }
+  if (!navigator.bluetooth) {
+    log('このブラウザはWeb Bluetoothに対応していません。AndroidのChromeで開いてください。');
+    setStatus('Web Bluetooth非対応のブラウザです', 'warn');
+    return;
+  }
+  setStatus('接続中…（キューブを回して起こしてください）', 'wait');
+  try {
+    const lib = await loadGanLib();
+    conn = await lib.connectGanCube(macProvider);
+    conn.events$.subscribe((ev) => {
+      if (ev.type === 'MOVE') onMove(ev.move, ev.cubeTimestamp, ev.localTimestamp != null ? ev.localTimestamp : ev.timestamp);
+      else if (ev.type === 'FACELETS') onFacelets(ev.facelets);
+      else if (ev.type === 'BATTERY') { $('deviceInfo').textContent = `${conn.deviceName} / ${conn.deviceMAC} / 電池 ${ev.batteryLevel}%`; }
+      else if (ev.type === 'HARDWARE') { log(`HW: ${ev.hardwareName || ''} fw ${ev.softwareVersion || ''} gyro ${ev.gyroSupported ? 'あり' : 'なし'}`); }
+      else if (ev.type === 'DISCONNECT') {
+        conn = null;
+        $('connectBtn').textContent = 'キューブに接続';
+        $('deviceInfo').textContent = '未接続';
+        setStatus('切断されました', 'warn');
+      }
+    });
+    $('connectBtn').textContent = '切断';
+    $('deviceInfo').textContent = `${conn.deviceName} / ${conn.deviceMAC}`;
+    if (conn.deviceMAC) { $('mac').value = conn.deviceMAC; saveMac(conn.deviceMAC); }
+    await conn.sendCubeCommand({ type: 'REQUEST_HARDWARE' });
+    await conn.sendCubeCommand({ type: 'REQUEST_FACELETS' });
+    await conn.sendCubeCommand({ type: 'REQUEST_BATTERY' });
+    setStatus('接続しました。スクランブルしてください', 'ready');
+    log(`接続: ${conn.deviceName} (${conn.deviceMAC})`);
+    if (mode === 'idle') newScramble();
+  } catch (e) {
+    conn = null;
+    $('connectBtn').textContent = 'キューブに接続';
+    setStatus('接続に失敗しました', 'warn');
+    log('接続エラー: ' + (e && e.message ? e.message : e));
+  }
+}
+
+// ---------- demo mode ----------
+function demoMove(m) {
+  const nowMs = performance.now();
+  onMove(m, nowMs, nowMs);
+}
+function setDemo(on) {
+  demoMode = on;
+  $('demoPanel').style.display = on ? 'block' : 'none';
+  $('demoBtn').textContent = on ? 'デモモード: ON' : 'デモモード';
+  if (on) {
+    cubeState = C.solvedState();
+    renderNet();
+    if (mode === 'idle' || mode === 'done') newScramble();
+    log('デモモード: 画面のボタンでキューブの代わりに操作できます');
+  }
+}
+
+// ---------- wire up ----------
+function init() {
+  $('mac').value = localStorage.getItem(LS_MAC) || '';
+  $('macFirst').checked = localStorage.getItem(LS_MACFIRST) === '1';
+  $('mac').addEventListener('change', () => saveMac($('mac').value.trim()));
+  $('macFirst').addEventListener('change', () => { try { localStorage.setItem(LS_MACFIRST, $('macFirst').checked ? '1' : '0'); } catch (e) { /* ignore */ } });
+
+  $('connectBtn').addEventListener('click', connectCube);
+  $('newScrambleBtn').addEventListener('click', () => { discardSilent(); newScramble(); });
+  $('forceStartBtn').addEventListener('click', () => { if (mode === 'scrambling' || mode === 'idle') armSolve('manual'); });
+  $('discardBtn').addEventListener('click', discardSolve);
+  $('exportBtn').addEventListener('click', exportJson);
+  $('importFile').addEventListener('change', (e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; });
+  $('clearBtn').addEventListener('click', () => {
+    if (window.confirm('履歴をすべて削除しますか？（エクスポート済みのバックアップは残ります）')) {
+      solves = []; saveSolves(); renderStats(); renderHistory(); log('履歴を全削除しました');
+    }
+  });
+  $('demoBtn').addEventListener('click', () => setDemo(!demoMode));
+  $('resetStateBtn').addEventListener('click', async () => {
+    if (!conn) { log('未接続です'); return; }
+    if (!window.confirm('キューブ内部の状態を「完成状態」にリセットします。キューブ本体が実際に完成状態のときだけ実行してください。')) return;
+    await conn.sendCubeCommand({ type: 'REQUEST_RESET' });
+    cubeState = C.solvedState(); renderNet(); checkScrambleMatch();
+    log('キューブ内部状態をリセットしました');
+  });
+  $('faceletsBtn').addEventListener('click', async () => {
+    if (!conn) { log('未接続です'); return; }
+    await conn.sendCubeCommand({ type: 'REQUEST_FACELETS' });
+    await conn.sendCubeCommand({ type: 'REQUEST_BATTERY' });
+  });
+
+  // Demo move buttons
+  const faces = ['U', 'R', 'F', 'D', 'L', 'B'];
+  const grid = $('demoMoves');
+  faces.forEach((f) => {
+    [f, f + "'"].forEach((m) => {
+      const b = document.createElement('button');
+      b.textContent = m; b.className = 'demo-move';
+      b.addEventListener('click', () => demoMove(m));
+      grid.appendChild(b);
+    });
+  });
+  $('demoScrambleBtn').addEventListener('click', () => {
+    if (!targetState) newScramble();
+    cubeState = targetState.slice();
+    renderNet(); checkScrambleMatch();
+  });
+  $('demoSolveBtn').addEventListener('click', () => {
+    if (mode !== 'armed' && mode !== 'scrambling') { log('まずスクランブルを適用してください'); return; }
+    if (mode === 'scrambling') { cubeState = targetState.slice(); renderNet(); checkScrambleMatch(); }
+    const inv = C.expandQuarters(C.parseSequence(C.invertSequence(currentScramble)));
+    let i = 0;
+    const step = () => { if (i < inv.length) { demoMove(inv[i]); i++; setTimeout(step, 110); } };
+    step();
+  });
+
+  renderNet(); renderStats(); renderHistory(); renderSplits(null);
+  newScramble();
+  if (!navigator.bluetooth) log('注意: このブラウザではWeb Bluetoothが使えません（Android Chrome推奨）。デモモードは使えます。');
+}
+function discardSilent() {
+  stopTimerDisplay(); releaseWakeLock();
+  solveCtx = null; firstLocal = null;
+}
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
